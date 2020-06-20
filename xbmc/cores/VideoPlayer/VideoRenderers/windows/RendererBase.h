@@ -142,7 +142,7 @@ protected:
   bool CreateRenderBuffer(int index);
   void DeleteRenderBuffer(int index);
 
-  void HandleHdrLogic(CRenderBuffer* rb);
+  void ProcessHDR(CRenderBuffer* rb);
 
   virtual void RenderImpl(CD3DTexture& target, CRect& sourceRect, CPoint (&destPoints)[4], uint32_t flags) = 0;
   virtual void FinalOutput(CD3DTexture& source, CD3DTexture& target, const CRect& sourceRect, const CPoint(&destPoints)[4]);
