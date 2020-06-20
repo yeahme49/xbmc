@@ -792,7 +792,7 @@ bool CApplication::Initialize()
     event.Reset();
 
     // Addon migration
-    ADDON::VECADDONS incompatible;
+    std::vector<AddonInfoPtr> incompatible;
     if (CServiceBroker::GetAddonMgr().GetIncompatibleAddons(incompatible))
     {
       if (CAddonSystemSettings::GetInstance().GetAddonAutoUpdateMode() == AUTO_UPDATES_ON)
@@ -818,6 +818,12 @@ bool CApplication::Initialize()
             ++iDots;
         }
         m_incompatibleAddons = incompatibleAddons;
+      }
+      else
+      {
+        // If no update is active disable all incompatible addons during start
+        m_incompatibleAddons =
+            CServiceBroker::GetAddonMgr().DisableIncompatibleAddons(incompatible);
       }
     }
 
