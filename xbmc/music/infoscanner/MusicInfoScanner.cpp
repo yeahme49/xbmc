@@ -1555,7 +1555,7 @@ CMusicInfoScanner::DownloadAlbumInfo(const CAlbum& album,
     {
       double bestRelevance = 0;
       double minRelevance = THRESHOLD;
-      if (scraper.GetAlbumCount() > 1) // score the matches
+      if (pDialog || scraper.GetAlbumCount() > 1) // score the matches
       {
         //show dialog with all albums found
         if (pDialog)
@@ -1564,8 +1564,10 @@ CMusicInfoScanner::DownloadAlbumInfo(const CAlbum& album,
           pDlg->SetHeading(CVariant{g_localizeStrings.Get(181)});
           pDlg->Reset();
           pDlg->EnableButton(true, 413); // manual
+          pDlg->SetUseDetails(true);
         }
 
+        CFileItemList items;
         for (int i = 0; i < scraper.GetAlbumCount(); ++i)
         {
           CMusicAlbumInfo& info = scraper.GetAlbum(i);
@@ -1586,17 +1588,32 @@ CMusicInfoScanner::DownloadAlbumInfo(const CAlbum& album,
           {
             // set the label to [relevance]  album - artist
             std::string strTemp = StringUtils::Format("[%0.2f]  %s", relevance, info.GetTitle2().c_str());
-            CFileItem item(strTemp);
-            item.m_idepth = i; // use this to hold the index of the album in the scraper
-            pDlg->Add(item);
+            CFileItemPtr item(new CFileItem("", false));
+            item->SetLabel(strTemp);
+
+            std::string strTemp2;
+            if (!scraper.GetAlbum(i).GetAlbum().strType.empty())
+              strTemp2 += scraper.GetAlbum(i).GetAlbum().strType;
+            if (!scraper.GetAlbum(i).GetAlbum().strReleaseDate.empty())
+              strTemp2 += " - " + scraper.GetAlbum(i).GetAlbum().strReleaseDate;
+            if (!scraper.GetAlbum(i).GetAlbum().strReleaseStatus.empty())
+              strTemp2 += " - " + scraper.GetAlbum(i).GetAlbum().strReleaseStatus;
+            if (!scraper.GetAlbum(i).GetAlbum().strLabel.empty())
+              strTemp2 += " - " + scraper.GetAlbum(i).GetAlbum().strLabel;
+            item->SetLabel2(strTemp2);
+
+            item->SetArt(scraper.GetAlbum(i).GetAlbum().art);
+
+            items.Add(item);
           }
-          if (relevance > .99f) // we're so close, no reason to search further
+          if (!pDialog && relevance > .999f) // we're so close, no reason to search further
             break;
         }
 
-        if (pDialog && bestRelevance < THRESHOLD)
+        if (pDialog)
         {
           pDlg->Sort(false);
+          pDlg->SetItems(items);
           pDlg->Open();
 
           // and wait till user selects one
@@ -1626,7 +1643,7 @@ CMusicInfoScanner::DownloadAlbumInfo(const CAlbum& album,
 
             return DownloadAlbumInfo(newAlbum, info, albumInfo, bUseScrapedMBID, pDialog);
           }
-          iSelectedAlbum = pDlg->GetSelectedFileItem()->m_idepth;
+          iSelectedAlbum = pDlg->GetSelectedItem();
         }
       }
       else

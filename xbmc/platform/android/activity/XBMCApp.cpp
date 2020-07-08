@@ -228,6 +228,12 @@ void CXBMCApp::onStart()
     registerReceiver(*this, intentFilter);
     m_mediaSession.reset(new CJNIXBMCMediaSession());
   }
+  if (g_application.IsInitialized())
+  {
+    IPowerSyscall* syscall = CServiceBroker::GetPowerManager().GetPowerSyscall();
+    if (syscall)
+      static_cast<CAndroidPowerSyscall*>(syscall)->SetOnResume();
+  }
 }
 
 void CXBMCApp::onResume()
@@ -246,28 +252,36 @@ void CXBMCApp::onResume()
     m_applications.clear();
   }
 
+  if (m_bResumePlayback && g_application.GetAppPlayer().IsPlaying())
+  {
+    if (g_application.GetAppPlayer().HasVideo())
+    {
+      if (g_application.GetAppPlayer().IsPaused())
+        CApplicationMessenger::GetInstance().SendMsg(
+            TMSG_GUI_ACTION, WINDOW_INVALID, -1,
+            static_cast<void*>(new CAction(ACTION_PLAYER_PLAY)));
+    }
+  }
+
   // Re-request Visible Behind
   if ((m_playback_state & PLAYBACK_STATE_PLAYING) && (m_playback_state & PLAYBACK_STATE_VIDEO))
     RequestVisibleBehind(true);
-
-  if (g_application.IsInitialized())
-  {
-    IPowerSyscall* syscall = CServiceBroker::GetPowerManager().GetPowerSyscall();
-    if (syscall)
-      static_cast<CAndroidPowerSyscall*>(syscall)->SetOnResume();
-  }
 }
 
 void CXBMCApp::onPause()
 {
   android_printf("%s: ", __PRETTY_FUNCTION__);
+  m_bResumePlayback = false;
 
   if (g_application.GetAppPlayer().IsPlaying())
   {
     if (g_application.GetAppPlayer().HasVideo())
     {
       if (!g_application.GetAppPlayer().IsPaused() && !m_hasReqVisible)
+      {
         CApplicationMessenger::GetInstance().SendMsg(TMSG_GUI_ACTION, WINDOW_INVALID, -1, static_cast<void*>(new CAction(ACTION_PAUSE)));
+        m_bResumePlayback = true;
+      }
     }
   }
 
@@ -276,13 +290,6 @@ void CXBMCApp::onPause()
 
   EnableWakeLock(false);
   m_hasReqVisible = false;
-
-  if (!g_application.IsStopping())
-  {
-    IPowerSyscall* syscall = CServiceBroker::GetPowerManager().GetPowerSyscall();
-    if (syscall)
-      static_cast<CAndroidPowerSyscall*>(syscall)->SetOnPause();
-  }
 }
 
 void CXBMCApp::onStop()
@@ -295,6 +302,13 @@ void CXBMCApp::onStop()
       CApplicationMessenger::GetInstance().SendMsg(TMSG_GUI_ACTION, WINDOW_INVALID, -1, static_cast<void*>(new CAction(ACTION_STOP)));
     else if (m_playback_state & PLAYBACK_STATE_VIDEO)
       CApplicationMessenger::GetInstance().SendMsg(TMSG_GUI_ACTION, WINDOW_INVALID, -1, static_cast<void*>(new CAction(ACTION_PAUSE)));
+  }
+
+  if (!g_application.IsStopping())
+  {
+    IPowerSyscall* syscall = CServiceBroker::GetPowerManager().GetPowerSyscall();
+    if (syscall)
+      static_cast<CAndroidPowerSyscall*>(syscall)->SetOnPause();
   }
 }
 
@@ -1346,9 +1360,8 @@ void CXBMCApp::SetupEnv()
   else
     setenv("HOME", getenv("KODI_TEMP"), 0);
 
-  std::string apkPath = getenv("KODI_ANDROID_APK");
-  apkPath += "/assets/python3.7";
-  setenv("PYTHONHOME", apkPath.c_str(), 1);
+  std::string pythonPath = cacheDir + "/apk/assets/python3.7";
+  setenv("PYTHONHOME", pythonPath.c_str(), 1);
   setenv("PYTHONPATH", "", 1);
   setenv("PYTHONOPTIMIZE","", 1);
   setenv("PYTHONNOUSERSITE", "1", 1);
